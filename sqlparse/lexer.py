@@ -189,8 +189,8 @@ class Lexer(object):
             (r'@[^\W\d_]\w+', tokens.Name),
             (r'[^\W\d_]\w*(?=[.(])', tokens.Name),  # see issue39
             (r'[-]?0x[0-9a-fA-F]+', tokens.Number.Hexadecimal),
-            (r'[-]?[0-9]*\.[0-9]+', tokens.Number.Float),
-            (r'[-]?[0-9]+', tokens.Number.Integer),
+            (r'[0-9]*\.[0-9]+', tokens.Number.Float),
+            (r'[0-9]+', tokens.Number.Integer),
             # TODO: Backslash escapes?
             (r"(''|'.*?[^\\]')", tokens.String.Single),
             # not a real string literal in ANSI SQL:

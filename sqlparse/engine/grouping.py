@@ -15,9 +15,11 @@ def _group_left_right(tlist, ttype, value, cls,
                       check_right=lambda t: True,
                       check_left=lambda t: True,
                       include_semicolon=False):
-    [_group_left_right(sgroup, ttype, value, cls, check_right,
-                       include_semicolon) for sgroup in tlist.get_sublists()
-     if not isinstance(sgroup, cls)]
+
+    sublists = tlist.get_sublists()
+    sublists = [sgroup for sgroup in sublists if not isinstance(sgroup, cls)]
+    
+    [_group_left_right(sgroup, ttype, value, cls, check_right, include_semicolon) for sgroup in sublists]
     idx = 0
     token = tlist.token_next_match(idx, ttype, value)
     while token:
@@ -115,14 +117,18 @@ def group_assignment(tlist):
 
 
 def group_comparison(tlist):
-
     def _parts_valid(token):
         return (token.ttype in (T.String.Symbol, T.Name, T.Number,
                                 T.Number.Integer, T.Literal,
-                                T.Literal.Number.Integer)
+                                T.Literal.Number.Integer, T.Operator)
                 or isinstance(token, (sql.Identifier,)))
-    _group_left_right(tlist, T.Operator.Comparison, None, sql.Comparison,
-                      check_left=_parts_valid, check_right=_parts_valid)
+        
+    _group_left_right(tlist, 
+                      T.Operator.Comparison, 
+                      None, 
+                      sql.Comparison,
+                      check_left = _parts_valid, 
+                      check_right = _parts_valid)
 
 
 def group_case(tlist):
@@ -141,7 +147,8 @@ def group_identifier(tlist):
                                    T.String.Single,
                                    T.Name,
                                    T.Wildcard,
-                                   T.Literal.Number.Integer))))
+                                   T.Literal.Number.Integer,
+                                   T.Literal.Number.Float))))
         for t in tl.tokens[i:]:
             # Don't take whitespaces into account.
             if t.ttype is T.Whitespace:
@@ -156,7 +163,7 @@ def group_identifier(tlist):
         # chooses the next token. if two tokens are found then the
         # first is returned.
         t1 = tl.token_next_by_type(
-            i, (T.String.Symbol, T.String.Single, T.Name))
+            i, (T.String.Symbol, T.String.Single, T.Name, T.Number.Integer, T.Number.Float))
         t2 = tl.token_next_by_instance(i, sql.Function)
         if t1 and t2:
             i1 = tl.token_index(t1)
@@ -169,10 +176,12 @@ def group_identifier(tlist):
             return t1
         else:
             return t2
-
+        
+    sgroups = tlist.get_sublists()
+    sgroups = [sgroup for sgroup in sgroups if not isinstance(sgroup, sql.Identifier)]
+    
     # bottom up approach: group subgroups first
-    [group_identifier(sgroup) for sgroup in tlist.get_sublists()
-     if not isinstance(sgroup, sql.Identifier)]
+    [group_identifier(sgroup) for sgroup in sgroups]
 
     # real processing
     idx = 0
@@ -325,12 +334,79 @@ def group_functions(tlist):
                                       tlist.tokens_between(token, next_))
             idx = tlist.token_index(func) + 1
         token = tlist.token_next_by_type(idx, T.Name)
+        
+def group_split_operators(tlist):
+    idx = 0
+    token = tlist.token_next_by_type(idx, T.Operator)
+    while token:
+        idx = tlist.token_index(token)
+        
+        if len(token.value) > 1:
+            tlist.tokens[idx] = sql.Token(T.Operator, token.value[0])
+            new_token_index = idx + 1
+            for op in token.value[1:]:
+                new_token = sql.Token(T.Operator, op)
+                tlist.tokens.insert(new_token_index, new_token)
+                new_token_index += 1
+        
+            idx = new_token_index
+            
+        token = tlist.token_next_by_type(idx+1, T.Operator)
 
-
+# converts operator, number => number
+def group_combine_negative(tlist):
+    idx = 0
+    token = tlist.token_next_by_type(idx, T.Operator)
+    idx = tlist.token_index(token)
+    
+    while token:
+        next_ = tlist.token_next(token)
+        
+        if next_.ttype in (T.Number.Integer, T.Number.Float):
+            prev_token = tlist.token_prev(idx)
+            
+            if prev_token and prev_token.ttype in (T.Operator):
+                mul = -1 if token.value == '-' else 1
+                
+                if next_.ttype == T.Number.Integer: 
+                    next_.value = str(mul * int(next_.value))
+                elif next_.ttype == T.Number.Float:
+                    next_.value = str(mul * float(next_.value))                    
+                
+                del tlist.tokens[idx]
+        
+        token = tlist.token_next_by_type(idx+1, T.Operator)
+        
+        if not token:
+            break
+        
+        idx = tlist.token_index(token)
+                    
+    
+def print_tlist(func_name, tlist):
+    def print_tokens(tokens, level=0, idx=0):
+        for token in tokens:
+            if isinstance(token, sql.TokenList):
+                print "%s %r" % (' ' * level * 2, token)
+                idx += 1
+                print_tokens(token.tokens, level+1, idx)
+            else:
+                if str(token).strip():                     
+                    print "%s %d: %r" % (' ' * level * 2, idx, token)
+                
+                idx += 1
+            
+    print "******** after %s ********" % func_name
+    print_tokens(tlist.tokens)
+    
+print_process = False
+    
 def group(tlist):
     for func in [
             group_comments,
             group_parenthesis,
+            group_split_operators,
+            group_combine_negative,
             group_functions,
             group_where,
             group_case,
@@ -344,3 +420,5 @@ def group(tlist):
             group_if,
             group_for]:
         func(tlist)
+        if print_process:
+            print_tlist(func.__name__, tlist)
