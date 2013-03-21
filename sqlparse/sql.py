@@ -58,8 +58,6 @@ class Token(object):
 
     def _get_repr_value(self):
         raw = unicode(self)
-        if len(raw) > 7:
-            raw = raw[:6] + u'...'
         return re.sub('\s+', ' ', raw)
 
     def flatten(self):

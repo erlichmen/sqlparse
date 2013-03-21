@@ -22,4 +22,7 @@ def print_sql(sql):
 #print_sql("Select a Where beauty-16.2=levels")
 #print_sql("Select a Where levels=beauty-16.2")
 #print_sql("Select a Where beauty -16=levels")
-print_sql("Select a Where levels=beauty +- 16")
+#print_sql("Select a Where levels=beauty +- 16")
+#print_sql("Select a Where levels=-16+2")
+print_sql("Select a Where -beauty-16=levels")
+#print_sql("Select a Where exp/4.2=cas")

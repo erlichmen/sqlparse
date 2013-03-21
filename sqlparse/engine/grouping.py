@@ -137,18 +137,23 @@ def group_case(tlist):
 
 
 def group_identifier(tlist):
-    def _consume_cycle(tl, i):
+    def _consume_cycle(tl, i, start_with_operator):
         # TODO: Usage of Wildcard token is ambivalent here.
-        x = itertools.cycle((
-            lambda y: (y.match(T.Punctuation, '.')
-                       or y.ttype is T.Operator
-                       or y.ttype is T.Wildcard),
-            lambda y: (y.ttype in (T.String.Symbol,
-                                   T.String.Single,
-                                   T.Name,
-                                   T.Wildcard,
-                                   T.Literal.Number.Integer,
-                                   T.Literal.Number.Float))))
+
+        operator_search = lambda y: (y.match(T.Punctuation, '.')
+                                     or y.ttype is T.Operator
+                                     or y.ttype is T.Wildcard)
+                                     
+        value_search = lambda y: y.ttype in (T.String.Symbol,
+                                             T.String.Single,
+                                             T.Name,
+                                             T.Wildcard,
+                                             T.Literal.Number.Integer,
+                                             T.Literal.Number.Float)
+        
+        cycle_order = (operator_search, value_search) if start_with_operator else (value_search, operator_search)
+             
+        x = itertools.cycle(cycle_order) 
         for t in tl.tokens[i:]:
             # Don't take whitespaces into account.
             if t.ttype is T.Whitespace:
@@ -163,7 +168,7 @@ def group_identifier(tlist):
         # chooses the next token. if two tokens are found then the
         # first is returned.
         t1 = tl.token_next_by_type(
-            i, (T.String.Symbol, T.String.Single, T.Name, T.Number.Integer, T.Number.Float))
+            i, (T.Operator, T.String.Symbol, T.String.Single, T.Name, T.Number.Integer, T.Number.Float))
         t2 = tl.token_next_by_instance(i, sql.Function)
         if t1 and t2:
             i1 = tl.token_index(t1)
@@ -181,15 +186,18 @@ def group_identifier(tlist):
     sgroups = [sgroup for sgroup in sgroups if not isinstance(sgroup, sql.Identifier)]
     
     # bottom up approach: group subgroups first
-    [group_identifier(sgroup) for sgroup in sgroups]
+    [group_identifier(sgroup) for sgroup in sgroups] #pylint: disable=W0106
 
     # real processing
     idx = 0
     token = _next_token(tlist, idx)
     while token:
+        start_with_operator = not token.ttype in (T.Operator) 
         identifier_tokens = [token] + list(
-            _consume_cycle(tlist,
-                           tlist.token_index(token) + 1))
+                                           _consume_cycle(tlist,
+                                                          tlist.token_index(token) + 1,
+                                                          start_with_operator))
+        
         # remove trailing whitespace
         if identifier_tokens and identifier_tokens[-1].ttype is T.Whitespace:
             identifier_tokens = identifier_tokens[:-1]
@@ -320,6 +328,20 @@ def group_typecasts(tlist):
     _group_left_right(tlist, T.Punctuation, '::', sql.Identifier)
 
 
+def group_functions2(tlist):
+    idx = 0
+    token = tlist.token_next_by_type(idx, T.Name)
+    while token:
+        next_ = tlist.token_next(token)
+        if not isinstance(next_, sql.Parenthesis):
+            idx = tlist.token_index(token) + 1
+        else:
+            func = tlist.group_tokens(sql.Function,
+                                      tlist.tokens_between(token, next_))
+            
+            idx = tlist.token_index(func) + 1
+        token = tlist.token_next_by_type(idx, T.Name)
+
 def group_functions(tlist):
     [group_functions(sgroup) for sgroup in tlist.get_sublists()
      if not isinstance(sgroup, sql.Function)]
@@ -362,7 +384,7 @@ def group_combine_negative(tlist):
     while token:
         next_ = tlist.token_next(token)
         
-        if next_.ttype in (T.Number.Integer, T.Number.Float):
+        if next_.ttype in (T.Number.Integer, T.Number.Float, T.Name):
             prev_token = tlist.token_prev(idx)
             
             if prev_token and prev_token.ttype in (T.Operator):
