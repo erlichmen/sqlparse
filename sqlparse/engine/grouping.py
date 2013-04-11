@@ -285,6 +285,52 @@ def group_comments(tlist):
             idx = tlist.token_index(group)
         token = tlist.token_next_by_type(idx, T.Comment)
 
+def group_order(tlist):
+    [group_order(sgroup) for sgroup in tlist.get_sublists()
+     if not isinstance(sgroup, sql.OrderBy)]
+
+    idx = 0
+
+    order_token = tlist.token_next_match(idx, T.Keyword, 'ORDER')
+    stopwords = ('GROUP', 'LIMIT', 'UNION', 'DESC', 'ASC')
+    while order_token:
+        order_index = tlist.token_index(order_token)
+
+        by_token = tlist.token_next_match(order_index, T.Keyword, 'BY')
+
+        tlist.tokens.remove(order_token)
+        tlist.tokens.remove(by_token)
+
+        order_by_token = sql.Token(T.Keyword, '%s %s' % (order_token.value, by_token.value))
+
+        tlist.tokens.insert(order_index, order_by_token)
+
+        while True:
+            end = tlist.token_next_match(order_index + 1, T.Keyword, stopwords)
+            
+            if end is None:
+                end = tlist._groupable_tokens[-1]
+                break
+            elif end.match(T.Keyword, 'desc') or end.match(T.Keyword, 'asc'):
+                prev_id = tlist.token_prev(tlist.token_index(end))
+
+                group = tlist.group_tokens(sql.Identifier,
+                                   tlist.tokens_between(prev_id, end),
+                                   ignore_ws=True)
+
+                order_token = tlist.token_index(group)
+                continue
+            else:
+                end = tlist.tokens[tlist.token_index(end) - 1]
+                break
+
+        group = tlist.group_tokens(sql.OrderBy,
+                                   tlist.tokens_between(order_by_token, end),
+                                   ignore_ws=True)
+
+        idx = tlist.token_index(group)
+
+        order_token = tlist.token_next_match(order_index, T.Keyword, 'ORDER')
 
 def group_where(tlist):
     [group_where(sgroup) for sgroup in tlist.get_sublists()
@@ -438,6 +484,7 @@ def group(tlist):
             group_aliased,
             group_assignment,
             group_comparison,
+            group_order,
             group_identifier_list,
             group_if,
             group_for]:
