@@ -547,10 +547,17 @@ class Where(TokenList):
     """A WHERE clause."""
     __slots__ = ('value', 'ttype', 'tokens')
 
-class OrderBy(TokenList):
+class Select(TokenList):
     """A WHERE clause."""
     __slots__ = ('value', 'ttype', 'tokens')
 
+class OrderBy(TokenList):
+    """A ORDER BY clause."""
+    __slots__ = ('value', 'ttype', 'tokens')
+
+class GroupBy(TokenList):
+    """A GROUP BY clause."""
+    __slots__ = ('value', 'ttype', 'tokens')
 
 class Case(TokenList):
     """A CASE statement with one or more WHEN and possibly an ELSE part."""

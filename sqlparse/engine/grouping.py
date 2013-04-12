@@ -285,6 +285,41 @@ def group_comments(tlist):
             idx = tlist.token_index(group)
         token = tlist.token_next_by_type(idx, T.Comment)
 
+def group_groupby(tlist):
+    [group_groupby(sgroup) for sgroup in tlist.get_sublists()
+     if not isinstance(sgroup, sql.GroupBy)]
+
+    idx = 0
+
+    group_token = tlist.token_next_match(idx, T.Keyword, 'GROUP')
+    stopwords = ('ORDER', 'LIMIT', 'UNION', 'DESC', 'ASC')
+    while group_token:
+        group_index = tlist.token_index(group_token)
+
+        by_token = tlist.token_next_match(group_index, T.Keyword, 'BY')
+
+        tlist.tokens.remove(group_token)
+        tlist.tokens.remove(by_token)
+
+        group_by_token = sql.Token(T.Keyword, '%s %s' % (group_token.value, by_token.value))
+
+        tlist.tokens.insert(group_index, group_by_token)
+
+        end = tlist.token_next_match(group_index + 1, T.Keyword, stopwords)
+        
+        if end is None:
+            end = tlist._groupable_tokens[-1]
+        else:
+            end = tlist.tokens[tlist.token_index(end) - 1]
+
+        group = tlist.group_tokens(sql.GroupBy,
+                                   tlist.tokens_between(group_by_token, end),
+                                   ignore_ws=True)
+
+        idx = tlist.token_index(group)
+
+        group_token = tlist.token_next_match(group_index, T.Keyword, 'GROUP')
+    
 def group_order(tlist):
     [group_order(sgroup) for sgroup in tlist.get_sublists()
      if not isinstance(sgroup, sql.OrderBy)]
@@ -351,6 +386,24 @@ def group_where(tlist):
         idx = tlist.token_index(group)
         token = tlist.token_next_match(idx, T.Keyword, 'WHERE')
 
+def group_select(tlist):
+    [group_select(sgroup) for sgroup in tlist.get_sublists()
+     if not isinstance(sgroup, sql.Where)]
+    idx = 0
+    token = tlist.token_next_match(idx, T.Keyword.DML, 'SELECT')
+    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'WHERE')
+    while token:
+        tidx = tlist.token_index(token)
+        end = tlist.token_next_match(tidx + 1, T.Keyword, stopwords)
+        if end is None:
+            end = tlist._groupable_tokens[-1]
+        else:
+            end = tlist.tokens[tlist.token_index(end) - 1]
+        group = tlist.group_tokens(sql.Select,
+                                   tlist.tokens_between(token, end),
+                                   ignore_ws=True)
+        idx = tlist.token_index(group)
+        token = tlist.token_next_match(idx, T.Keyword.DML, 'SELECT')
 
 def group_aliased(tlist):
     clss = (sql.Identifier, sql.Function, sql.Case)
@@ -372,21 +425,6 @@ def group_aliased(tlist):
 
 def group_typecasts(tlist):
     _group_left_right(tlist, T.Punctuation, '::', sql.Identifier)
-
-
-def group_functions2(tlist):
-    idx = 0
-    token = tlist.token_next_by_type(idx, T.Name)
-    while token:
-        next_ = tlist.token_next(token)
-        if not isinstance(next_, sql.Parenthesis):
-            idx = tlist.token_index(token) + 1
-        else:
-            func = tlist.group_tokens(sql.Function,
-                                      tlist.tokens_between(token, next_))
-            
-            idx = tlist.token_index(func) + 1
-        token = tlist.token_next_by_type(idx, T.Name)
 
 def group_functions(tlist):
     [group_functions(sgroup) for sgroup in tlist.get_sublists()
@@ -476,6 +514,7 @@ def group(tlist):
             group_split_operators,
             group_combine_negative,
             group_functions,
+            group_select,
             group_where,
             group_case,
             group_identifier,
@@ -485,6 +524,7 @@ def group(tlist):
             group_assignment,
             group_comparison,
             group_order,
+            group_groupby,
             group_identifier_list,
             group_if,
             group_for]:
