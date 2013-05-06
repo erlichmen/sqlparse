@@ -257,7 +257,7 @@ class TokenList(Token):
 
         If no matching token can be found ``None`` is returned.
         """
-        if not isinstance(clss, (list, tuple)):
+        if not isinstance(clss, (tuple)):
             clss = (clss,)
 
         for token in self.tokens[idx:]:
@@ -543,7 +543,19 @@ class Comment(TokenList):
     __slots__ = ('value', 'ttype', 'tokens')
 
 
+class From(TokenList):
+    """A WHERE clause."""
+    __slots__ = ('value', 'ttype', 'tokens')
+
+class Limit(TokenList):
+    """A WHERE clause."""
+    __slots__ = ('value', 'ttype', 'tokens')
+
 class Where(TokenList):
+    """A WHERE clause."""
+    __slots__ = ('value', 'ttype', 'tokens')
+
+class Having(TokenList):
     """A WHERE clause."""
     __slots__ = ('value', 'ttype', 'tokens')
 

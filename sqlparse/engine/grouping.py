@@ -292,7 +292,7 @@ def group_groupby(tlist):
     idx = 0
 
     group_token = tlist.token_next_match(idx, T.Keyword, 'GROUP')
-    stopwords = ('ORDER', 'LIMIT', 'UNION', 'DESC', 'ASC')
+    stopwords = ('LIMIT', 'UNION')
     while group_token:
         group_index = tlist.token_index(group_token)
 
@@ -305,8 +305,11 @@ def group_groupby(tlist):
 
         tlist.tokens.insert(group_index, group_by_token)
 
-        end = tlist.token_next_match(group_index + 1, T.Keyword, stopwords)
-        
+        end = tlist.token_next_by_instance(group_index + 1, (sql.OrderBy))
+
+        if not end:
+            end = tlist.token_next_match(group_index + 1, T.Keyword, stopwords)
+
         if end is None:
             end = tlist._groupable_tokens[-1]
         else:
@@ -315,6 +318,9 @@ def group_groupby(tlist):
         group = tlist.group_tokens(sql.GroupBy,
                                    tlist.tokens_between(group_by_token, end),
                                    ignore_ws=True)
+
+        group.ttype = T.Keyword
+        group.is_keyword = True
 
         idx = tlist.token_index(group)
 
@@ -367,12 +373,32 @@ def group_order(tlist):
 
         order_token = tlist.token_next_match(order_index, T.Keyword, 'ORDER')
 
+def group_having(tlist):
+    [group_having(sgroup) for sgroup in tlist.get_sublists()
+     if not isinstance(sgroup, sql.Having)]
+    idx = 0
+    token = tlist.token_next_match(idx, T.Keyword, 'HAVING')
+    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'WHERE')
+    while token:
+        tidx = tlist.token_index(token)
+        end = tlist.token_next_match(tidx + 1, T.Keyword, stopwords)
+        if end is None:
+            end = tlist._groupable_tokens[-1]
+        else:
+            end = tlist.tokens[tlist.token_index(end) - 1]
+        group = tlist.group_tokens(sql.Having,
+                                   tlist.tokens_between(token, end),
+                                   ignore_ws=True)
+        idx = tlist.token_index(group)
+        token = tlist.token_next_match(idx, T.Keyword, 'HAVING')
+
+
 def group_where(tlist):
     [group_where(sgroup) for sgroup in tlist.get_sublists()
      if not isinstance(sgroup, sql.Where)]
     idx = 0
     token = tlist.token_next_match(idx, T.Keyword, 'WHERE')
-    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION')
+    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'HAVING')
     while token:
         tidx = tlist.token_index(token)
         end = tlist.token_next_match(tidx + 1, T.Keyword, stopwords)
@@ -391,7 +417,7 @@ def group_select(tlist):
      if not isinstance(sgroup, sql.Where)]
     idx = 0
     token = tlist.token_next_match(idx, T.Keyword.DML, 'SELECT')
-    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'WHERE')
+    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'WHERE', 'FROM', 'HAVING')
     while token:
         tidx = tlist.token_index(token)
         end = tlist.token_next_match(tidx + 1, T.Keyword, stopwords)
@@ -404,6 +430,44 @@ def group_select(tlist):
                                    ignore_ws=True)
         idx = tlist.token_index(group)
         token = tlist.token_next_match(idx, T.Keyword.DML, 'SELECT')
+
+def group_limit(tlist):
+    [group_limit(sgroup) for sgroup in tlist.get_sublists()
+     if not isinstance(sgroup, sql.Limit)]
+    idx = 0
+    token = tlist.token_next_match(idx, T.Keyword, 'Limit')
+    stopwords = ('ORDER', 'GROUP', 'UNION', 'WHERE', 'HAVING')
+    while token:
+        tidx = tlist.token_index(token)
+        end = tlist.token_next_match(tidx + 1, T.Keyword, stopwords)
+        if end is None:
+            end = tlist._groupable_tokens[-1]
+        else:
+            end = tlist.tokens[tlist.token_index(end) - 1]
+        group = tlist.group_tokens(sql.Limit,
+                                   tlist.tokens_between(token, end),
+                                   ignore_ws=True)
+        idx = tlist.token_index(group)
+        token = tlist.token_next_match(idx, T.Keyword, 'Limit')
+
+def group_from(tlist):
+    [group_from(sgroup) for sgroup in tlist.get_sublists()
+     if not isinstance(sgroup, sql.From)]
+    idx = 0
+    token = tlist.token_next_match(idx, T.Keyword, 'FROM')
+    stopwords = ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'WHERE', 'HAVING')
+    while token:
+        tidx = tlist.token_index(token)
+        end = tlist.token_next_match(tidx + 1, T.Keyword, stopwords)
+        if end is None:
+            end = tlist._groupable_tokens[-1]
+        else:
+            end = tlist.tokens[tlist.token_index(end) - 1]
+        group = tlist.group_tokens(sql.From,
+                                   tlist.tokens_between(token, end),
+                                   ignore_ws=True)
+        idx = tlist.token_index(group)
+        token = tlist.token_next_match(idx, T.Keyword, 'FROM')
 
 def group_aliased(tlist):
     clss = (sql.Identifier, sql.Function, sql.Case)
@@ -463,6 +527,10 @@ def group_split_operators(tlist):
 def group_combine_negative(tlist):
     idx = 0
     token = tlist.token_next_by_type(idx, T.Operator)
+
+    if not token:
+        return
+
     idx = tlist.token_index(token)
     
     while token:
@@ -515,7 +583,9 @@ def group(tlist):
             group_combine_negative,
             group_functions,
             group_select,
+            group_from,
             group_where,
+            group_having,
             group_case,
             group_identifier,
             group_typecasts,
@@ -527,6 +597,7 @@ def group(tlist):
             group_groupby,
             group_identifier_list,
             group_if,
+            group_limit,
             group_for]:
         func(tlist)
         if print_process:

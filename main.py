@@ -24,10 +24,13 @@ def print_sql(sql):
 #print_sql("Select a Where beauty -16=levels")
 #print_sql("Select a Where levels=beauty +- 16")
 #print_sql("Select a Where levels=-16+2")
-print_sql("Select a Where -beauty-16=levels order BY A ASC,B DESC,C,D DESC,E Group by A,B,C")
+#print_sql("Select a  as apples Where -beauty-16=levels order BY A ASC,B DESC,C,D DESC,E Group by A,B,C")
 
 #print_sql("Select a Where -beauty-16=levels order BY A,B DESC")
 #print_sql("Select a Where -beauty-16=levels order BY A desc, B")
           
-
+print_sql('Select a from "hello world" where SUM(OrderPrice)>1500 limit 13')
 #print_sql("Select a Where exp/4.2=cas")
+
+#print_sql("Select user Where left(user,1)<>'F' group by user order by a desc limit 10")
+#print_sql("Select a  as apples Where -beauty-16=levels order BY A ASC,B DESC,C,D DESC,E Group by A,B,C")
